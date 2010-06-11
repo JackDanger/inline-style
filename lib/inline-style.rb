@@ -13,18 +13,20 @@ module InlineStyle
   #     +:stylesheets_path+
   #       Stylesheets root path, can also be a URL
   #
+  #     +:style_content+
+  #       CSS content passed in as string
+  #
   #     +pseudo+
   #       If set to true will inline style for pseudo classes according to the W3C specification:
   #       http://www.w3.org/TR/css-style-attr.
   #       Defaults to false and should probably be left like that because at least Safari and Firefox don't seem to 
   #       comply with the specification for pseudo class style in the style attribute.
   def self.process html, opts = {}
-    stylesheets_path = opts[:stylesheets_path] || ''
     pseudo           = opts[:pseudo] || false
     
     nokogiri_doc_given = Nokogiri::HTML::Document === html
     html  = nokogiri_doc_given ? html : Nokogiri.HTML(html)
-    css   = extract_css html, stylesheets_path
+    css   = extract_css html, opts
     nodes = {}
 
     css.rule_sets.each do |rule_set|
@@ -69,15 +71,18 @@ module InlineStyle
   end
   
   # Returns CSSPool::Document
-  def self.extract_css html, stylesheets_path = ''
-    CSSPool.CSS html.css('style, link').collect { |e|
+  def self.extract_css html, opts
+    
+    css = opts[:style_content] || html.css('style, link').collect { |e|
       next unless e['media'].nil?  or ['screen', 'all'].include? e['media']
       next(e.remove and e.content) if e.name == 'style'
       next unless e['rel'] == 'stylesheet'
       e.remove
       
-      uri = %r{^https?://} === e['href'] ? e['href'] : File.join(stylesheets_path, e['href'].sub(/\?\d+$/,''))
+      uri = %r{^https?://} === e['href'] ? e['href'] : File.join(opts[:stylesheets_path] || '', e['href'].sub(/\?\d+$/,''))
       open(uri).read rescue nil
     }.join("\n")
+
+    CSSPool.CSS css
   end
 end
